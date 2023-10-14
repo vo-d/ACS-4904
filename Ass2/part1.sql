@@ -1,4 +1,4 @@
-DAY Dimension, Figure 1-5 – modify this for range of days, and for the fiscal period
+--DAY Dimension, Figure 1-5 – modify this for range of days, and for the fiscal period
 DROP TABLE IF EXISTS DimensionDay;
 -- Day dimension as shown in Figure 1-5
 CREATE TABLE IF NOT EXISTS DimensionDay
@@ -122,12 +122,30 @@ select * from DimensionProduct;
 
 
 
+-- Create DimensionShipper
+DROP TABLE IF EXISTS DimensionShipper;
+CREATE TABLE DimensionShipper(
+    shipper_key serial primary key,
+    shipper_id smallint,
+    company_name character varying(40),
+    phone character varying(24)
+);
+
+
+INSERT INTO DimensionShipper (shipper_id, company_name, phone)
+SELECT shipper_id, company_name, phone
+FROM Shippers;
+select * from DimensionShipper;
 
 
 
 
-DROP TABLE if exists Order_Facts;
-CREATE TABLE Order_Facts(
+
+
+
+-- Order_Facts
+DROP TABLE if exists order_facts;
+CREATE TABLE order_facts(
 product_key integer,
 customer_key integer,
 day_key integer,
@@ -135,9 +153,8 @@ quantity_ordered integer
 );
 
 
-INSERT INTO Order_Facts
-SELECT p.product_key, c.customer_key,d.day_key,
-sum(quantity)
+INSERT INTO order_facts
+SELECT p.product_key, c.customer_key,d.day_key, sum(quantity)
 FROM order_details od
 inner join DimensionProduct p on (p.product_id = od.product_id)
 inner join orders o on (o.order_id = od.order_id)
@@ -145,30 +162,95 @@ inner join DimensionDay d on (o.order_date = d.fullDate)
 inner join DimensionCustomer c on (o.customer_id = c.customer_id)
 GROUP BY p.product_key, c.customer_key,d.day_key
 ;
-select * from order_facts
+select * from order_facts;
 
 
 
-DROP TABLE if exists Shipment_Facts;
-CREATE TABLE Shipment_Facts(
+
+-- shipment fact
+DROP TABLE if exists shipment_facts;
+CREATE TABLE shipment_facts(
 product_key integer,
-employee_key integer,
 customer_key integer,
 day_key integer,
-quantity_ordered integer,
-order_dollars real
+shipper_key integer,
+quantity_shipped integer
 );
 
 
-INSERT INTO Order_Facts
-SELECT p.product_key, e.employee_key, c.customer_key,d.day_key,
-sum(quantity), sum(quantity*od.unit_price)
+INSERT INTO shipment_facts
+SELECT p.product_key, c.customer_key,d.day_key, s.shipper_key, sum(od.quantity) as quantity_shipped
 FROM order_details od
 inner join DimensionProduct p on (p.product_id = od.product_id)
 inner join orders o on (o.order_id = od.order_id)
 inner join DimensionDay d on (o.order_date = d.fullDate)
-inner join DimensionEmployee e on (o.employee_id = e.employee_id)
+inner join DimensionShipper s on (o.ship_via = s.shipper_id)
 inner join DimensionCustomer c on (o.customer_id = c.customer_id)
-GROUP BY p.product_key, e.employee_key, c.customer_key,d.day_key
+WHERE o.shipped_date IS NOT NULL
+GROUP BY p.product_key, s.shipper_key, c.customer_key,d.day_key
 ;
-select * from order_facts;
+
+select * from shipment_facts;
+
+
+
+--b
+
+select coalesce(o.product_key, s.product_key) as pkey, 
+sum(o.quantity_ordered) as ordered,
+sum(s.quantity_shipped) as shipped
+from order_facts as o full outer join shipment_facts as s
+on (o.product_key=s.product_key)
+group by pkey
+order by pkey;
+
+--c
+
+WITH 
+    o AS(
+        SELECT product_key, sum(quantity_ordered) as ordered
+        FROM order_facts 
+        GROUP BY product_key
+    ),
+    s AS(
+        SELECT product_key, sum(quantity_shipped) as shipped
+        FROM shipment_facts
+        GROUP BY product_key
+    )
+    SELECT COALESCE(o.product_key, s.product_key) as pkey, ordered, shipped
+    FROM o FULL OUTER JOIN s ON (o.product_key = s.product_key)
+    ORDER BY pkey
+
+
+
+
+
+
+
+-- Create DimensionShipper
+DROP TABLE IF EXISTS DimensionShipper;
+CREATE TABLE DimensionShipper(
+    shipper_key serial primary key,
+    shipper_id smallint,
+    company_name character varying(40),
+    phone character varying(24),
+    effective_date date,
+    expiry_date date,
+    most_recent_version char(10) CHECK(most_recent_version = 'Current' OR most_recent_version = 'Expire')
+);
+
+
+INSERT INTO DimensionShipper (shipper_id, company_name, phone,effective_date,expiry_date, most_recent_version )
+VALUES(1, 'adadada', 4313336183, '2002-01-01', '2003-10-01', 'Current')
+
+
+DROP TABLE IF EXISTS Changes;
+CREATE TABLE changes(
+    changes_key serial primary key,
+    changes_id smallint,
+    shipper_id smallint,
+    
+)
+
+
+
