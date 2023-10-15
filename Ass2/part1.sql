@@ -236,21 +236,65 @@ CREATE TABLE DimensionShipper(
     phone character varying(24),
     effective_date date,
     expiry_date date,
-    most_recent_version char(10) CHECK(most_recent_version = 'Current' OR most_recent_version = 'Expire')
+    is_current BOOLEAN
 );
 
 
-INSERT INTO DimensionShipper (shipper_id, company_name, phone,effective_date,expiry_date, most_recent_version )
-VALUES(1, 'adadada', 4313336183, '2002-01-01', '2003-10-01', 'Current')
+
+INSERT INTO DimensionShipper (shipper_id, company_name, phone, effective_date, expiry_date, is_current)
+SELECT shipper_id, company_name, phone, '1999-01-01', '9999-12-31', true
+FROM Shippers;
+
+
+select * from DimensionShipper;
+
+
+
 
 
 DROP TABLE IF EXISTS Changes;
 CREATE TABLE changes(
     changes_key serial primary key,
     changes_id smallint,
+    change_type character varying(10) CHECK(change_type = 'Update' or change_type = 'Insert'),
+    change_date date,
     shipper_id smallint,
-    
+    company_name character VARYING(40),
+    phone character varying(24)
 )
 
 
+INSERT INTO changes(changes_id, change_type, change_date, shipper_id, company_name, phone)
+VALUES(1, 'Update', '2000-01-01', 1, 'Speedy aaa', '(503) 555-9831'),
+(1, 'Insert', '2000-01-01', 7, 'Canada Post', '123-456-7890');
 
+SELECT * from changes
+
+
+DROP FUNCTION IF EXISTS migrate_change();
+
+CREATE OR REPLACE FUNCTION migrate_change()
+RETURNS void as $$
+DECLARE
+change_row record;
+BEGIN 
+    
+    FOR change_row IN (SELECT * FROM Changes) LOOP
+        IF change_row.change_type = 'Update' THEN 
+
+            UPDATE DimensionShipper
+            SET is_current = FALSE, effective_date = change_row.change_date, expiry_date = '9999-12-31'
+            WHERE shipper_id = change_row.shipper_id AND is_current = TRUE;
+        END IF;
+
+        INSERT INTO DimensionShipper (shipper_id, company_name, phone, effective_date, expiry_date, is_current)
+        VALUES (change_row.shipper_id, change_row.company_name, change_row.phone, change_row.change_date, '9999-12-31', true);
+
+    END LOOP;
+
+    --
+END;
+$$ LANGUAGE plpgsql;
+
+
+SELECT migrate_change();
