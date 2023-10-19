@@ -124,7 +124,7 @@ select * from DimensionProduct;
 
 -- Create DimensionShipper
 DROP TABLE IF EXISTS DimensionShipper;
-CREATE TABLE DimensionShipper(
+CREATE TABLE IF NOT EXISTS DimensionShipper(
     shipper_key serial primary key,
     shipper_id smallint,
     company_name character varying(40),
@@ -135,17 +135,11 @@ CREATE TABLE DimensionShipper(
 INSERT INTO DimensionShipper (shipper_id, company_name, phone)
 SELECT shipper_id, company_name, phone
 FROM Shippers;
-select * from DimensionShipper;
-
-
-
-
-
 
 
 -- Order_Facts
 DROP TABLE if exists order_facts;
-CREATE TABLE order_facts(
+CREATE TABLE IF NOT EXISTS order_facts(
 product_key integer,
 customer_key integer,
 day_key integer,
@@ -162,14 +156,11 @@ inner join DimensionDay d on (o.order_date = d.fullDate)
 inner join DimensionCustomer c on (o.customer_id = c.customer_id)
 GROUP BY p.product_key, c.customer_key,d.day_key
 ;
-select * from order_facts;
-
-
 
 
 -- shipment fact
 DROP TABLE if exists shipment_facts;
-CREATE TABLE shipment_facts(
+CREATE TABLE IF NOT EXISTS shipment_facts(
 product_key integer,
 customer_key integer,
 day_key integer,
@@ -190,11 +181,25 @@ WHERE o.shipped_date IS NOT NULL
 GROUP BY p.product_key, s.shipper_key, c.customer_key,d.day_key
 ;
 
-select * from shipment_facts;
-
+--Inserting all data needed from product,customer,day,shipper
+--into shipment facts
+INSERT INTO Shipment_facts
+SELECT p.product_key, c.customer_key, d.day_key,s.shipper_key
+FROM order_details as od
+inner join Dimensionproduct as p on (p.product_id = od.product_id)
+inner join orders as o on (o.order_id = od.order_id)
+inner join Dimensioncustomer as c on (c.customer_id = o.customer_id)
+inner join DimensionDay as d on (d.fullDate = o.order_date)
+inner join DimensionShipper as s on (s.shipper_id = o.ship_via)
+WHERE o.shipped_date IS NOT NULL;
 
 
 --b
+/* There is no problem running the queries but I don’t think 
+that the result is correct. It is because if there are 
+more than one records of a specific product_key being purchased 
+or shipped, the full outer join will create duplication to match 
+the join and the result will be exaggerated many time by using sum(). */
 
 select coalesce(o.product_key, s.product_key) as pkey, 
 sum(o.quantity_ordered) as ordered,
@@ -227,9 +232,9 @@ WITH
 
 
 
--- Create DimensionShipper
+-- Recreate DimensionShipper
 DROP TABLE IF EXISTS DimensionShipper;
-CREATE TABLE DimensionShipper(
+CREATE TABLE IF NOT EXISTS DimensionShipper(
     shipper_key serial primary key,
     shipper_id smallint,
     company_name character varying(40),
@@ -251,9 +256,10 @@ select * from DimensionShipper;
 
 
 
+-- 2a
 
 DROP TABLE IF EXISTS Changes;
-CREATE TABLE changes(
+CREATE TABLE IF NOT EXISTS changes(
     changes_key serial primary key,
     changes_id smallint,
     change_type character varying(10) CHECK(change_type = 'Update' or change_type = 'Insert'),
@@ -261,15 +267,15 @@ CREATE TABLE changes(
     shipper_id smallint,
     company_name character VARYING(40),
     phone character varying(24)
-)
+);
 
 
 INSERT INTO changes(changes_id, change_type, change_date, shipper_id, company_name, phone)
 VALUES(1, 'Update', '2000-01-01', 1, 'Speedy aaa', '(503) 555-9831'),
 (1, 'Insert', '2000-01-01', 7, 'Canada Post', '123-456-7890');
 
-SELECT * from changes
 
+-- 2b
 
 DROP FUNCTION IF EXISTS migrate_change();
 
@@ -283,7 +289,7 @@ BEGIN
         IF change_row.change_type = 'Update' THEN 
 
             UPDATE DimensionShipper
-            SET is_current = FALSE, effective_date = change_row.change_date, expiry_date = '9999-12-31'
+            SET is_current = FALSE, expiry_date = change_row.change_date
             WHERE shipper_id = change_row.shipper_id AND is_current = TRUE;
         END IF;
 
@@ -298,3 +304,6 @@ $$ LANGUAGE plpgsql;
 
 
 SELECT migrate_change();
+
+
+select * from DimensionShipper;
