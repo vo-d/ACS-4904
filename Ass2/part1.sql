@@ -181,18 +181,6 @@ WHERE o.shipped_date IS NOT NULL
 GROUP BY p.product_key, s.shipper_key, c.customer_key,d.day_key
 ;
 
---Inserting all data needed from product,customer,day,shipper
---into shipment facts
-INSERT INTO Shipment_facts
-SELECT p.product_key, c.customer_key, d.day_key,s.shipper_key
-FROM order_details as od
-inner join Dimensionproduct as p on (p.product_id = od.product_id)
-inner join orders as o on (o.order_id = od.order_id)
-inner join Dimensioncustomer as c on (c.customer_id = o.customer_id)
-inner join DimensionDay as d on (d.fullDate = o.order_date)
-inner join DimensionShipper as s on (s.shipper_id = o.ship_via)
-WHERE o.shipped_date IS NOT NULL;
-
 
 --b
 /* There is no problem running the queries but I don’t think 
