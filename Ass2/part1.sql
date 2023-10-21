@@ -216,10 +216,6 @@ WITH
 
 
 
-
-
-
-
 -- Recreate DimensionShipper
 DROP TABLE IF EXISTS DimensionShipper;
 CREATE TABLE IF NOT EXISTS DimensionShipper(
@@ -240,7 +236,6 @@ FROM Shippers;
 
 
 select * from DimensionShipper;
-
 
 
 
