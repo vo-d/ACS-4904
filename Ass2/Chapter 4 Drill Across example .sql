@@ -45,6 +45,9 @@ from order_facts1 as o full outer join shipment_facts1 as s
 on (o.product_key=s.product_key)
 group by pkey;
 
+
+
+
 ---------------------------------------------------------------------
 -- do two separate temporary grouping queries
 -- outer join the results
